@@ -18,14 +18,14 @@ const Dashboard: React.FC = () => {
     setIsWatching(true);
     setStatusMessage(null);
     
-    // Check for AndroidBuilder environment
+    // Exact match for the "WebViewStringChange" block in Android Builder
     const win = window as any;
     if (win.AppInventor) {
-      // This sends the signal to your Blocks
+      console.log("Triggering Native Ad via WebViewString");
       win.AppInventor.setWebViewString("show_rewarded_ad");
     } else {
-      // Browser testing mock
-      console.log("Native bridge not found. Simulating ad...");
+      // Browser Mock for testing
+      console.log("Native bridge not found. Mocking ad behavior...");
       setTimeout(() => {
         window.postMessage("reward_granted", "*");
       }, 3000);
@@ -34,17 +34,20 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     const handleNativeMessage = (event: MessageEvent) => {
-      // These strings must match your "RunJavaScript" blocks in AndroidBuilder
+      // These signals match the "RunJavaScript" blocks in your Android Builder setup
       if (event.data === "reward_granted") {
         setIsWatching(false);
         setStatusMessage("✅ Points Added Successfully!");
         setTimeout(() => setStatusMessage(null), 3000);
-      } else if (event.data === "ad_closed") {
+      } 
+      else if (event.data === "ad_not_ready") {
         setIsWatching(false);
-      } else if (event.data === "ad_not_ready") {
-        setIsWatching(false);
-        setStatusMessage("⏳ Ad is still loading... wait 5 seconds.");
+        setStatusMessage("⏳ Ad is still loading... wait a moment.");
         setTimeout(() => setStatusMessage(null), 4000);
+      }
+      // Handlers for closing/failing (Add these RunJavaScript blocks to your builder for better UX)
+      else if (event.data === "ad_dismissed" || event.data === "ad_closed" || event.data === "ad_failed") {
+        setIsWatching(false);
       }
     };
 
@@ -85,7 +88,7 @@ const Dashboard: React.FC = () => {
       {/* Balance Display */}
       <div className="glass rounded-[40px] p-8 mb-8 text-center relative overflow-hidden border border-white/10 shadow-2xl">
         <div className="absolute -top-10 -right-10 w-40 h-40 bg-[#13ec5b] opacity-10 rounded-full blur-[60px]" />
-        <p className="text-gray-400 font-bold tracking-[0.2em] text-[10px] mb-2 uppercase opacity-60">Total Earnings</p>
+        <p className="text-gray-400 font-bold tracking-[0.2em] text-[10px] mb-2 uppercase opacity-60">Your Balance</p>
         <div className="flex items-center justify-center gap-3">
           <span className="text-6xl font-black text-[#13ec5b] tracking-tighter drop-shadow-[0_0_20px_rgba(19,236,91,0.4)]">
             {user.points.toLocaleString()}
@@ -102,7 +105,7 @@ const Dashboard: React.FC = () => {
             {isWatching ? (
               <div className="flex items-center gap-3">
                 <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                <span className="font-bold text-white uppercase tracking-widest text-xs">Processing Ad...</span>
+                <span className="font-bold text-white uppercase tracking-widest text-xs">Ad Playing...</span>
               </div>
             ) : (
               <>
@@ -113,7 +116,7 @@ const Dashboard: React.FC = () => {
           </button>
           
           {statusMessage && (
-            <div className="mt-4 animate-bounce">
+            <div className="mt-4 animate-in fade-in slide-in-from-top-1">
               <p className={`text-[11px] font-black uppercase tracking-widest ${statusMessage.includes('✅') ? 'text-[#13ec5b]' : 'text-yellow-400'}`}>
                 {statusMessage}
               </p>

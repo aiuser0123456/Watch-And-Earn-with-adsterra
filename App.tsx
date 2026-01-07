@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-// Fix: Ensuring onAuthStateChanged is imported correctly from firebase/auth
+// Standard modular Firebase Auth import
 import { onAuthStateChanged } from 'firebase/auth';
 import { User, Activity, WithdrawRequest, ActivityType, RequestStatus } from './types';
 import { mockDb, loginWithGoogle, loginAsAdmin, auth, dbService } from './services/mockData';
@@ -38,13 +38,13 @@ const App: React.FC = () => {
   // GLOBAL NATIVE REWARD LISTENER
   useEffect(() => {
     const handleNativeReward = async (event: MessageEvent) => {
-      // String must match exactly what the Android Blocks send
+      // Matches your "window.postMessage('reward_granted', '*')" block exactly
       if (event.data === "reward_granted" && user) {
-        console.log("Reward signal received from Native Bridge");
+        console.log("Point granting signal received from Android Builder");
         try {
           await grantReward();
         } catch (e) {
-          console.error("Reward processing error:", e);
+          console.error("Reward sync error:", e);
         }
       }
     };
@@ -85,12 +85,11 @@ const App: React.FC = () => {
   const grantReward = async (): Promise<{ points: number; isLucky: boolean }> => {
     if (!user) return { points: 0, isLucky: false };
 
-    // Standard reward: 1-3 points. Lucky reward: 6 points.
+    // Point logic: 1-3 pts normally. 6 pts for 10% lucky bonus.
     let reward = Math.floor(Math.random() * 3) + 1;
-    let isLucky = Math.random() < 0.10; // 10% chance
+    let isLucky = Math.random() < 0.10; 
     if (isLucky) reward = 6;
 
-    // Update cloud and local state
     await dbService.updatePoints(user.uid, reward);
     await dbService.logActivity({
       userId: user.uid,
@@ -132,7 +131,7 @@ const App: React.FC = () => {
   if (loading) return (
     <div className="min-h-screen bg-[#102216] flex flex-col items-center justify-center">
        <div className="w-10 h-10 border-4 border-[#13ec5b] border-t-transparent rounded-full animate-spin mb-4" />
-       <p className="text-[#13ec5b] font-black uppercase tracking-[0.3em] text-[10px]">Syncing Session...</p>
+       <p className="text-[#13ec5b] font-black uppercase tracking-[0.3em] text-[10px]">Connecting...</p>
     </div>
   );
 

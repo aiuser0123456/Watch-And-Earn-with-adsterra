@@ -1,7 +1,14 @@
 
 import { initializeApp } from 'firebase/app';
-// Fix: Consolidating Firebase Auth imports into a single line to resolve potential module resolution issues
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
+// Standard modular Firebase Auth imports
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut, 
+  setPersistence, 
+  browserLocalPersistence 
+} from 'firebase/auth';
 import { 
   getFirestore, 
   doc, 
