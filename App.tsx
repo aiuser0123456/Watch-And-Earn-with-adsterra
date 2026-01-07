@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { onAuthStateChanged } from 'firebase/auth';
 import { User, Activity, WithdrawRequest, ActivityType, RequestStatus } from './types';
-import { mockDb, loginWithGoogle, loginAsAdmin } from './services/mockData';
+import { mockDb, loginWithGoogle, loginAsAdmin, auth } from './services/mockData';
 import Login from './screens/Login';
 import Dashboard from './screens/Dashboard';
 import Withdraw from './screens/Withdraw';
@@ -31,7 +32,31 @@ export const useApp = () => {
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(mockDb.getCurrentUser());
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Sync state with Firebase Auth
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      if (fbUser) {
+        // Find local user data or use stored mock data
+        const localUser = mockDb.getUsers().find(u => u.uid === fbUser.uid);
+        if (localUser) {
+          setUser(localUser);
+          mockDb.setCurrentUser(localUser);
+        }
+      } else {
+        // If not logged in, but we have an admin demo session, keep it
+        const current = mockDb.getCurrentUser();
+        if (!current?.isAdmin) {
+          setUser(null);
+          mockDb.setCurrentUser(null);
+        }
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const refreshUser = () => {
     const updatedUser = mockDb.getUsers().find(u => u.uid === user?.uid);
@@ -41,19 +66,13 @@ const App: React.FC = () => {
     }
   };
 
-  /**
-   * UNIVERSAL REWARD LOGIC:
-   * This is called AFTER the ad timer or video finishes.
-   */
   const grantReward = async (): Promise<{ points: number; isLucky: boolean }> => {
     return new Promise((resolve) => {
       if (!user) return resolve({ points: 0, isLucky: false });
 
-      // Logic for randomized points 1-3
-      let reward = Math.floor(Math.random() * 3) + 1; // 1, 2, or 3
+      let reward = Math.floor(Math.random() * 3) + 1;
       let isLucky = false;
 
-      // Lucky Bonus Logic (6 points, max 2 times a day)
       const today = new Date().setHours(0, 0, 0, 0);
       const dailyActivities = mockDb.getActivity().filter(
         a => a.userId === user.uid && a.createdAt >= today
@@ -62,14 +81,12 @@ const App: React.FC = () => {
         a => a.status === 'Bonus' && a.points === 6
       ).length;
 
-      // 10% chance for Lucky 6
       if (luckyCountToday < 2 && Math.random() < 0.10) {
         reward = 6;
         isLucky = true;
       }
 
       const updatedUser = { ...user, points: user.points + reward };
-      
       const newActivity: Activity = {
         id: Math.random().toString(),
         userId: user.uid,
@@ -134,6 +151,15 @@ const App: React.FC = () => {
     });
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#102216] flex flex-col items-center justify-center">
+        <div className="w-16 h-16 border-4 border-[#13ec5b] border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-[#13ec5b] font-bold tracking-widest animate-pulse">EMERALD REWARDS</p>
+      </div>
+    );
+  }
+
   return (
     <AppContext.Provider value={{ user, setUser, loading, refreshUser, grantReward, submitWithdraw }}>
       <Router>
@@ -147,6 +173,7 @@ const App: React.FC = () => {
             <Route path="/admin" element={user?.isAdmin ? <AdminPanel /> : <Navigate to="/" />} />
             <Route path="/terms" element={<TermsConditions />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>
       </Router>

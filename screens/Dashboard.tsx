@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
-import { ICONS, COLORS } from '../constants';
-import { mockDb } from '../services/mockData';
+import { ICONS } from '../constants';
+import { logoutUser } from '../services/mockData';
 import ConfirmationDialog from '../components/ConfirmationDialog';
 
 const Dashboard: React.FC = () => {
@@ -15,7 +15,6 @@ const Dashboard: React.FC = () => {
   const [rewardInfo, setRewardInfo] = useState<{points: number, isLucky: boolean} | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Total ad duration (15 seconds for non-video networks like Adsterra)
   const AD_DURATION = 15;
 
   useEffect(() => {
@@ -43,9 +42,17 @@ const Dashboard: React.FC = () => {
     setTimeout(() => setRewardInfo(null), 3000);
   };
 
-  const handleLogout = () => {
-    mockDb.setCurrentUser(null);
-    setUser(null); // This triggers the redirect automatically via App.tsx routing
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+      setUser(null);
+      navigate('/login', { replace: true });
+    } catch (e) {
+      console.error(e);
+      // Hard fallback
+      setUser(null);
+      window.location.href = '/#/login';
+    }
   };
 
   if (!user) return null;
@@ -74,7 +81,7 @@ const Dashboard: React.FC = () => {
       {/* Main Balance Card */}
       <div className="glass rounded-[32px] p-8 mb-8 text-center relative overflow-hidden group">
         <div className="absolute top-0 right-0 w-32 h-32 bg-[#13ec5b] opacity-10 rounded-full blur-[60px] translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform" />
-        <p className="text-gray-400 font-semibold tracking-widest text-sm mb-2">CURRENT BALANCE</p>
+        <p className="text-gray-400 font-semibold tracking-widest text-sm mb-2 uppercase">Current Balance</p>
         <div className="flex items-center justify-center gap-3">
           <span className="text-6xl font-black text-[#13ec5b] tracking-tight drop-shadow-[0_0_15px_rgba(19,236,91,0.4)]">
             {user.points.toLocaleString()}
@@ -102,7 +109,7 @@ const Dashboard: React.FC = () => {
         </button>
       </div>
 
-      {/* Ad Progress Bar (only visible when watching) */}
+      {/* Ad Progress Bar */}
       {isWatching && (
         <div className="mb-8 animate-in fade-in slide-in-from-top-4">
           <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
