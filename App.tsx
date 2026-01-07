@@ -3,7 +3,7 @@ import React, { useState, useEffect, createContext, useContext } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { User, Activity, WithdrawRequest, ActivityType, RequestStatus } from './types';
-import { mockDb, loginWithGoogle, loginAsAdmin, auth } from './services/mockData';
+import { mockDb, loginWithGoogle, loginAsAdmin, auth, dbService } from './services/mockData';
 import Login from './screens/Login';
 import Dashboard from './screens/Dashboard';
 import Withdraw from './screens/Withdraw';
@@ -36,16 +36,15 @@ const App: React.FC = () => {
 
   // Sync state with Firebase Auth
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
-        // Find local user data or use stored mock data
-        const localUser = mockDb.getUsers().find(u => u.uid === fbUser.uid);
-        if (localUser) {
-          setUser(localUser);
-          mockDb.setCurrentUser(localUser);
+        // Fetch real-time data from Firestore
+        const cloudUser = await dbService.getUser(fbUser.uid);
+        if (cloudUser) {
+          setUser(cloudUser);
+          mockDb.setCurrentUser(cloudUser);
         }
       } else {
-        // If not logged in, but we have an admin demo session, keep it
         const current = mockDb.getCurrentUser();
         if (!current?.isAdmin) {
           setUser(null);
@@ -58,8 +57,9 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  const refreshUser = () => {
-    const updatedUser = mockDb.getUsers().find(u => u.uid === user?.uid);
+  const refreshUser = async () => {
+    if (!user) return;
+    const updatedUser = await dbService.getUser(user.uid);
     if (updatedUser) {
       setUser({ ...updatedUser });
       mockDb.setCurrentUser(updatedUser);
@@ -67,88 +67,76 @@ const App: React.FC = () => {
   };
 
   const grantReward = async (): Promise<{ points: number; isLucky: boolean }> => {
-    return new Promise((resolve) => {
-      if (!user) return resolve({ points: 0, isLucky: false });
+    if (!user) return { points: 0, isLucky: false };
 
-      let reward = Math.floor(Math.random() * 3) + 1;
-      let isLucky = false;
+    let reward = Math.floor(Math.random() * 3) + 1;
+    let isLucky = false;
 
-      const today = new Date().setHours(0, 0, 0, 0);
-      const dailyActivities = mockDb.getActivity().filter(
-        a => a.userId === user.uid && a.createdAt >= today
-      );
-      const luckyCountToday = dailyActivities.filter(
-        a => a.status === 'Bonus' && a.points === 6
-      ).length;
+    // Check lucky bonus probability
+    if (Math.random() < 0.10) {
+      reward = 6;
+      isLucky = true;
+    }
 
-      if (luckyCountToday < 2 && Math.random() < 0.10) {
-        reward = 6;
-        isLucky = true;
-      }
-
-      const updatedUser = { ...user, points: user.points + reward };
-      const newActivity: Activity = {
-        id: Math.random().toString(),
+    try {
+      // 1. Update Points in Firestore
+      await dbService.updatePoints(user.uid, reward);
+      
+      // 2. Log Activity in Firestore
+      await dbService.logActivity({
         userId: user.uid,
         type: ActivityType.WATCH_AD,
         points: reward,
         title: isLucky ? 'Lucky Bonus Reward' : 'Ad Reward',
-        createdAt: Date.now(),
         status: isLucky ? 'Bonus' : 'Completed'
-      };
-      
-      const activities = mockDb.getActivity();
-      mockDb.saveActivity([newActivity, ...activities]);
-      
-      const users = mockDb.getUsers();
-      const idx = users.findIndex(u => u.uid === user.uid);
-      if (idx > -1) {
-        users[idx] = updatedUser;
-        mockDb.saveUsers(users);
-      }
-      
+      });
+
+      // 3. Update Local State
+      const updatedUser = { ...user, points: user.points + reward };
       setUser(updatedUser);
       mockDb.setCurrentUser(updatedUser);
-      resolve({ points: reward, isLucky });
-    });
+
+      return { points: reward, isLucky };
+    } catch (e) {
+      console.error("Failed to grant reward:", e);
+      throw e;
+    }
   };
 
   const submitWithdraw = async (points: number, email: string): Promise<void> => {
     if (!user || user.points < points) throw new Error("Insufficient points");
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const newRequest: WithdrawRequest = {
-          id: 'WR-' + Math.random().toString(36).substr(2, 9).toUpperCase(),
-          userId: user.uid,
-          userEmail: email,
-          points: points,
-          status: RequestStatus.PENDING,
-          method: 'Google Play Redeem',
-          createdAt: Date.now(),
-          amountInInr: points / 100
-        };
-        const requests = mockDb.getRequests();
-        mockDb.saveRequests([newRequest, ...requests]);
-        const updatedUser = { ...user, points: user.points - points };
-        const newActivity: Activity = {
-          id: Math.random().toString(),
-          userId: user.uid,
-          type: ActivityType.WITHDRAWAL,
-          points: -points,
-          title: 'Reward Redemption',
-          createdAt: Date.now(),
-          status: 'Pending'
-        };
-        const activities = mockDb.getActivity();
-        mockDb.saveActivity([newActivity, ...activities]);
-        const users = mockDb.getUsers();
-        const idx = users.findIndex(u => u.uid === user.uid);
-        if (idx > -1) { users[idx] = updatedUser; mockDb.saveUsers(users); }
-        setUser(updatedUser);
-        mockDb.setCurrentUser(updatedUser);
-        resolve();
-      }, 1500);
-    });
+    
+    try {
+      // 1. Create withdrawal request in Firestore
+      await dbService.addWithdrawRequest({
+        userId: user.uid,
+        userEmail: email,
+        points: points,
+        status: RequestStatus.PENDING,
+        method: 'Google Play Redeem',
+        amountInInr: points / 100
+      });
+
+      // 2. Deduct points in Firestore
+      await dbService.updatePoints(user.uid, -points);
+
+      // 3. Log as negative activity
+      await dbService.logActivity({
+        userId: user.uid,
+        type: ActivityType.WITHDRAWAL,
+        points: -points,
+        title: 'Reward Redemption',
+        status: 'Pending'
+      });
+
+      // 4. Update UI
+      const updatedUser = { ...user, points: user.points - points };
+      setUser(updatedUser);
+      mockDb.setCurrentUser(updatedUser);
+    } catch (e) {
+      console.error("Withdrawal failed:", e);
+      throw e;
+    }
   };
 
   if (loading) {
