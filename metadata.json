@@ -1,0 +1,7 @@
+{
+  "name": "Copy of Emerald Rewards - Watch & Earn",
+  "description": "A high-fidelity mobile-first reward application where users earn points by watching ads and redeem them for Google Play Gift Cards.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
