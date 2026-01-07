@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { db } from '../services/mockData';
+import { db, auth } from '../services/mockData';
 import { useApp } from '../App';
 import Layout from '../components/Layout';
 import { Activity, WithdrawRequest, ActivityType, RequestStatus } from '../types';
@@ -20,11 +20,15 @@ const History: React.FC = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [indexError, setIndexError] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    // CRITICAL: Ensure Firebase Auth has a currentUser before starting Firestore listeners
+    // to avoid "Permission Denied" errors.
+    if (!user || !auth.currentUser) return;
 
     setLoading(true);
+    setIndexError(false);
     
     // Real-time Activity Listener (Latest 10)
     const qActivity = query(
@@ -41,17 +45,31 @@ const History: React.FC = () => {
       limit(10)
     );
 
-    const unsubActivity = onSnapshot(qActivity, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity));
-      setActivities(data);
-      if (tab === 'activity') setLoading(false);
-    });
+    const unsubActivity = onSnapshot(qActivity, 
+      (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity));
+        setActivities(data);
+        if (tab === 'activity') setLoading(false);
+      },
+      (error) => {
+        console.error("Activity Listener Error:", error);
+        if (error.code === 'failed-precondition') setIndexError(true);
+        setLoading(false);
+      }
+    );
 
-    const unsubWithdrawals = onSnapshot(qWithdrawals, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WithdrawRequest));
-      setWithdrawals(data);
-      if (tab === 'withdrawals') setLoading(false);
-    });
+    const unsubWithdrawals = onSnapshot(qWithdrawals, 
+      (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WithdrawRequest));
+        setWithdrawals(data);
+        if (tab === 'withdrawals') setLoading(false);
+      },
+      (error) => {
+        console.error("Withdrawals Listener Error:", error);
+        if (error.code === 'failed-precondition') setIndexError(true);
+        setLoading(false);
+      }
+    );
 
     return () => {
       unsubActivity();
@@ -98,7 +116,12 @@ const History: React.FC = () => {
       </div>
 
       <div className="space-y-4 pb-10">
-        {loading ? (
+        {indexError ? (
+          <div className="glass p-8 rounded-3xl border border-yellow-500/30 text-center">
+            <p className="text-yellow-400 font-black text-xs uppercase tracking-widest mb-2">Database Index Required</p>
+            <p className="text-gray-400 text-xs">Please click the link in your Browser Console to generate the required Firestore Index for this view.</p>
+          </div>
+        ) : loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
              <div className="w-8 h-8 border-4 border-[#13ec5b] border-t-transparent rounded-full animate-spin" />
              <p className="text-gray-600 font-bold uppercase tracking-widest text-[10px]">Updating Feed...</p>

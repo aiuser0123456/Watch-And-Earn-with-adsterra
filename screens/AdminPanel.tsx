@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { db } from '../services/mockData';
+import { db, auth } from '../services/mockData';
 import Layout from '../components/Layout';
 import { WithdrawRequest, RequestStatus, User } from '../types';
 import { 
@@ -9,10 +9,9 @@ import {
   orderBy, 
   onSnapshot, 
   doc, 
-  updateDoc, 
-  Timestamp 
+  updateDoc 
 } from 'firebase/firestore';
-import { ICONS, CONVERSION_FACTOR } from '../constants';
+import { CONVERSION_FACTOR } from '../constants';
 
 const AdminPanel: React.FC = () => {
   const [requests, setRequests] = useState<WithdrawRequest[]>([]);
@@ -26,24 +25,34 @@ const AdminPanel: React.FC = () => {
 
   // 1. Real-time Requests Listener
   useEffect(() => {
+    if (!auth.currentUser) return;
+    
     const q = query(collection(db, "withdrawRequests"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const reqs = snapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      } as WithdrawRequest));
-      setRequests(reqs);
-    });
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        const reqs = snapshot.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data() 
+        } as WithdrawRequest));
+        setRequests(reqs);
+      },
+      (error) => console.error("Admin Requests Error:", error)
+    );
     return () => unsubscribe();
   }, []);
 
   // 2. Real-time Users Listener
   useEffect(() => {
+    if (!auth.currentUser) return;
+
     const q = query(collection(db, "users"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const u = snapshot.docs.map(doc => doc.data() as User);
-      setUsers(u);
-    });
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        const u = snapshot.docs.map(doc => doc.data() as User);
+        setUsers(u);
+      },
+      (error) => console.error("Admin Users Error:", error)
+    );
     return () => unsubscribe();
   }, []);
 
@@ -112,7 +121,6 @@ const AdminPanel: React.FC = () => {
 
       {activeTab === 'requests' ? (
         <div className="space-y-6">
-          {/* Sub-filters for requests */}
           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
             {[
               { id: RequestStatus.PENDING, label: 'Pending' },
@@ -146,7 +154,7 @@ const AdminPanel: React.FC = () => {
                        <div>
                          <p className="font-bold text-sm truncate max-w-[150px]">{req.userEmail}</p>
                          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">
-                           {new Date(req.createdAt).toLocaleDateString()} • {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                           {new Date(req.createdAt).toLocaleDateString()}
                          </p>
                        </div>
                     </div>
@@ -172,21 +180,11 @@ const AdminPanel: React.FC = () => {
                         Process
                       </button>
                     )}
-                    
-                    {req.status === RequestStatus.APPROVED && (
-                      <div className="text-right">
-                         <p className="text-[9px] text-emerald-500 font-bold uppercase">Code Sent</p>
-                         <p className="text-xs font-mono font-bold text-gray-400">{req.code}</p>
-                      </div>
-                    )}
                   </div>
                 </div>
               ))
             ) : (
               <div className="text-center py-20 opacity-30">
-                <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
-                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
-                </div>
                 <p className="font-bold uppercase tracking-widest text-xs">No {filterStatus} Requests</p>
               </div>
             )}
@@ -194,20 +192,12 @@ const AdminPanel: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex justify-between items-center px-2">
-             <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest">Active Users ({users.length})</h3>
-             <span className="text-[10px] text-[#13ec5b] font-bold">Points Sum: {stats.totalPointsSystem.toLocaleString()}</span>
-          </div>
-          
           {users.map(u => (
             <div key={u.uid} className="glass p-4 rounded-[24px] border border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <img src={u.photoUrl} className="w-12 h-12 rounded-full border border-white/10" alt="" />
                 <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-bold text-sm">{u.name}</p>
-                    {u.isAdmin && <span className="bg-blue-500/20 text-blue-400 text-[8px] px-1.5 py-0.5 rounded uppercase font-black">Admin</span>}
-                  </div>
+                  <p className="font-bold text-sm">{u.name}</p>
                   <p className="text-[10px] text-gray-500">{u.email}</p>
                 </div>
               </div>
@@ -220,68 +210,39 @@ const AdminPanel: React.FC = () => {
         </div>
       )}
 
-      {/* Action Modal - High Fidelity Sliding Drawer Style */}
       {selectedReq && (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="glass w-full max-w-md p-8 rounded-t-[40px] border-t border-white/20 animate-in slide-in-from-bottom-full duration-500">
-            <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-8" />
-            
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/80 backdrop-blur-sm">
+          <div className="glass w-full max-w-md p-8 rounded-t-[40px] border-t border-white/20">
             <h3 className="text-2xl font-black mb-1">Process Payment</h3>
             <p className="text-gray-400 text-sm mb-8">Send reward to <span className="text-white font-bold">{selectedReq.userEmail}</span></p>
             
-            <div className="bg-white/5 rounded-3xl p-6 mb-8 border border-white/5">
-               <div className="flex justify-between mb-4">
-                 <span className="text-gray-500 text-xs font-bold uppercase tracking-widest">Redeem Amount</span>
-                 <span className="text-xl font-black text-[#13ec5b]">₹{selectedReq.amountInInr}</span>
-               </div>
-               <div className="flex justify-between">
-                 <span className="text-gray-500 text-xs font-bold uppercase tracking-widest">Points Deducted</span>
-                 <span className="text-sm font-bold text-red-400">-{selectedReq.points} PTS</span>
-               </div>
-            </div>
-
             <div className="space-y-6">
-              <div>
-                <label className="text-[10px] font-black text-gray-500 uppercase mb-3 block tracking-widest">Google Play Redeem Code</label>
-                <input 
-                  type="text"
-                  value={redeemCode}
-                  onChange={(e) => setRedeemCode(e.target.value.toUpperCase())}
-                  placeholder="GP-XXXX-XXXX-XXXX"
-                  className="w-full h-16 bg-white/5 border-2 border-white/10 rounded-[22px] px-6 focus:border-[#13ec5b] outline-none font-mono text-lg tracking-widest transition-all placeholder:text-gray-700"
-                />
-              </div>
-
+              <input 
+                type="text"
+                value={redeemCode}
+                onChange={(e) => setRedeemCode(e.target.value.toUpperCase())}
+                placeholder="GP-XXXX-XXXX-XXXX"
+                className="w-full h-16 bg-white/5 border-2 border-white/10 rounded-[22px] px-6 focus:border-[#13ec5b] outline-none font-mono text-lg tracking-widest"
+              />
               <div className="flex gap-4">
                 <button 
                   onClick={() => handleAction(RequestStatus.REJECTED)}
-                  disabled={isProcessing}
-                  className="flex-1 h-16 bg-red-500/10 text-red-500 border border-red-500/20 rounded-[22px] font-black uppercase text-xs tracking-widest active:scale-95 disabled:opacity-50"
+                  className="flex-1 h-16 bg-red-500/10 text-red-500 border border-red-500/20 rounded-[22px] font-black uppercase text-xs"
                 >
                   Reject
                 </button>
                 <button 
                   onClick={() => handleAction(RequestStatus.APPROVED)}
-                  disabled={isProcessing || !redeemCode}
-                  className="flex-[2] h-16 bg-[#13ec5b] text-[#102216] rounded-[22px] font-black uppercase text-xs tracking-widest active:scale-95 shadow-[0_15px_30px_rgba(19,236,91,0.3)] disabled:opacity-50"
+                  className="flex-[2] h-16 bg-[#13ec5b] text-[#102216] rounded-[22px] font-black uppercase text-xs"
                 >
                   {isProcessing ? 'Saving...' : 'Approve & Pay'}
                 </button>
               </div>
-              
-              <button 
-                onClick={() => setSelectedReq(null)}
-                className="w-full py-2 text-gray-600 font-black text-[10px] uppercase tracking-widest hover:text-white transition-colors"
-              >
-                Go Back
-              </button>
+              <button onClick={() => setSelectedReq(null)} className="w-full py-2 text-gray-600 font-black text-[10px] uppercase">Cancel</button>
             </div>
           </div>
         </div>
       )}
-
-      {/* Padding for bottom nav space */}
-      <div className="h-20" />
     </Layout>
   );
 };
