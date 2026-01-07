@@ -1,10 +1,10 @@
 
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 import { User, WithdrawRequest, Activity, ActivityType, RequestStatus } from '../types';
 
-// REAL FIREBASE CONFIGURATION (Provided by User)
+// REAL FIREBASE CONFIGURATION
 export const firebaseConfig = {
   apiKey: "AIzaSyBo98K017YR-GYpODUFp89JhULO9CVMrgI",
   authDomain: "watch-and-earn-money-for-free.firebaseapp.com",
@@ -15,10 +15,13 @@ export const firebaseConfig = {
   measurementId: "G-N2D2BXBLPJ"
 };
 
-// Initialize Firebase
+// Initialize Firebase once
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Ensure session stays in LocalStorage
+setPersistence(auth, browserLocalPersistence);
 
 const USERS_KEY = 'emerald_rewards_users';
 const REQUESTS_KEY = 'emerald_rewards_requests';
@@ -50,11 +53,12 @@ export const mockDb = {
 
 export const loginWithGoogle = async (): Promise<User> => {
   const provider = new GoogleAuthProvider();
-  // This will now open the real Google Selection Popup
+  // CRITICAL: Forces the Google Account Selection Popup every time
+  provider.setCustomParameters({ prompt: 'select_account' });
+  
   const result = await signInWithPopup(auth, provider);
   const fbUser = result.user;
 
-  // Check if user exists in our local mock "DB" (fallback for demo) or handle via Firestore
   const users = mockDb.getUsers();
   let existingUser = users.find(u => u.uid === fbUser.uid);
 
@@ -76,7 +80,11 @@ export const loginWithGoogle = async (): Promise<User> => {
 };
 
 export const logoutUser = async () => {
-  await signOut(auth);
+  try {
+    await signOut(auth);
+  } catch (e) {
+    console.error("Firebase signOut failed:", e);
+  }
   mockDb.setCurrentUser(null);
 };
 
