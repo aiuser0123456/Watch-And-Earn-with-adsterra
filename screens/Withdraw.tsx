@@ -10,7 +10,6 @@ const Withdraw: React.FC = () => {
   const { user, submitWithdraw } = useApp();
   const navigate = useNavigate();
   const [amount, setAmount] = useState<number>(1000);
-  const [email, setEmail] = useState(user?.email || '');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -21,7 +20,7 @@ const Withdraw: React.FC = () => {
     setShowConfirm(false);
     setLoading(true);
     try {
-      await submitWithdraw(amount, email);
+      await submitWithdraw(amount, user.email);
       setSuccess(true);
     } catch (e) {
       alert("Something went wrong. Please try again.");
@@ -81,53 +80,24 @@ const Withdraw: React.FC = () => {
           </div>
         </div>
 
-        {/* Info Card */}
-        <div className="glass p-5 rounded-[24px] flex gap-4 items-start border border-white/5">
-          <div className="p-3 bg-blue-500/20 rounded-xl">
-            <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-            </svg>
-          </div>
-          <div>
-            <h4 className="font-bold">Exchange Rate</h4>
-            <p className="text-gray-400 text-sm">1000 Points = ₹10. Minimum withdrawal is 1000 points.</p>
-          </div>
-        </div>
-
         {/* Payment Methods */}
         <div>
           <h3 className="text-lg font-bold mb-4 flex justify-between">
             Payment Method
-            <span className="text-[#13ec5b] text-xs font-medium">Recommended</span>
+            <span className="text-[#13ec5b] text-xs font-medium uppercase tracking-widest">Selected</span>
           </h3>
-          <div className="space-y-4">
-            <div className="p-4 glass rounded-[24px] border-2 border-[#13ec5b] relative">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-12 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center">
-                  <img src="https://www.gstatic.com/images/branding/product/1x/play_prism_48dp.png" className="w-8 h-8 object-contain" alt="Google Play" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-lg leading-tight">Google Play Redeem Code</h4>
-                  <p className="text-gray-400 text-xs">Instant delivery via email</p>
-                </div>
+          <div className="p-4 glass rounded-[24px] border-2 border-[#13ec5b] relative">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-12 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center">
+                <img src="https://www.gstatic.com/images/branding/product/1x/play_prism_48dp.png" className="w-8 h-8 object-contain" alt="Google Play" />
               </div>
-              <div className="absolute top-4 right-4 bg-[#13ec5b] text-[#102216] text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                <ICONS.Check className="w-3 h-3" /> SELECTED
+              <div>
+                <h4 className="font-bold text-lg leading-tight">Google Play Redeem Code</h4>
+                <p className="text-gray-400 text-xs">Instant delivery to your email</p>
               </div>
             </div>
-
-            <div className="p-4 glass rounded-[24px] border border-white/5 opacity-40">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-12 rounded-xl bg-gray-800 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                </div>
-                <div>
-                  <h4 className="font-bold text-lg leading-tight">Bank Transfer</h4>
-                  <p className="text-gray-400 text-xs">Currently unavailable</p>
-                </div>
-              </div>
+            <div className="absolute top-4 right-4 bg-[#13ec5b] text-[#102216] text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+              <ICONS.Check className="w-3 h-3" /> ACTIVE
             </div>
           </div>
         </div>
@@ -138,7 +108,7 @@ const Withdraw: React.FC = () => {
           
           <div className="space-y-4">
             <div>
-              <label className="text-gray-400 text-xs font-bold uppercase mb-2 block">Email Address</label>
+              <label className="text-gray-400 text-[10px] font-black uppercase mb-2 block tracking-widest">Delivery Email (Fixed)</label>
               <div className="relative">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,21 +117,16 @@ const Withdraw: React.FC = () => {
                 </div>
                 <input 
                   type="email" 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 focus:border-[#13ec5b] focus:outline-none transition-colors"
-                  placeholder="Enter your email"
+                  value={user.email}
+                  readOnly
+                  className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 text-gray-400 font-bold outline-none cursor-not-allowed"
                 />
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600">
-                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                   </svg>
-                </div>
               </div>
+              <p className="mt-2 text-[9px] text-gray-600 uppercase font-black tracking-tighter">Rewards are strictly sent to your registered account email.</p>
             </div>
 
             <div>
-              <label className="text-gray-400 text-xs font-bold uppercase mb-2 block">Points to Deduct</label>
+              <label className="text-gray-400 text-[10px] font-black uppercase mb-2 block tracking-widest">Redeem Amount</label>
               <div className="flex gap-2">
                 {[1000, 2000, 5000].map((val) => (
                   <button 
@@ -179,38 +144,37 @@ const Withdraw: React.FC = () => {
           <div className="pt-4 space-y-4">
              <div className="flex justify-between items-end">
                <div>
-                 <p className="text-gray-400 text-sm">You will receive</p>
-                 <p className="text-2xl font-black">₹{(amount * CONVERSION_FACTOR).toFixed(2)}</p>
+                 <p className="text-gray-400 text-xs font-bold">RECEIVE</p>
+                 <p className="text-3xl font-black">₹{(amount * CONVERSION_FACTOR).toFixed(0)}</p>
                </div>
                <div className="text-right">
-                 <p className="text-gray-400 text-sm">Points deducted</p>
-                 <p className="text-lg font-bold text-red-400">-{amount.toLocaleString()} Pts</p>
+                 <p className="text-gray-400 text-xs font-bold">COST</p>
+                 <p className="text-xl font-black text-red-400">-{amount.toLocaleString()} Pts</p>
                </div>
              </div>
              
              <button 
                 onClick={onConfirmClick}
                 disabled={loading || user.points < amount}
-                className="w-full h-16 bg-[#13ec5b] text-[#102216] rounded-2xl font-black text-lg flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 transition-all shadow-[0_10px_20px_rgba(19,236,91,0.2)]"
+                className="w-full h-16 bg-[#13ec5b] text-[#102216] rounded-2xl font-black text-lg flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 transition-all shadow-[0_10px_30px_rgba(19,236,91,0.2)]"
              >
                 {loading ? (
                   <div className="w-6 h-6 border-2 border-[#102216] border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    Confirm Withdrawal <ICONS.ArrowRight className="w-6 h-6" />
+                    Confirm Redemption <ICONS.ArrowRight className="w-6 h-6" />
                   </>
                 )}
              </button>
-             <p className="text-[10px] text-center text-gray-500">By clicking confirm, you agree to our <span className="underline cursor-pointer" onClick={() => navigate('/terms')}>Terms of Service</span>.</p>
           </div>
         </div>
       </div>
 
       <ConfirmationDialog 
         isOpen={showConfirm}
-        title="Confirm Redemption"
-        message={`You are about to redeem ${amount.toLocaleString()} points for a ₹${(amount * CONVERSION_FACTOR).toFixed(2)} Google Play Redeem Code. This action cannot be undone.`}
-        confirmText="Yes, Redeem Now"
+        title="Confirm Redeem?"
+        message={`This will deduct ${amount.toLocaleString()} points for a ₹${(amount * CONVERSION_FACTOR).toFixed(0)} Google Play gift card.`}
+        confirmText="Yes, Redeem"
         onConfirm={handleWithdraw}
         onCancel={() => setShowConfirm(false)}
       />
