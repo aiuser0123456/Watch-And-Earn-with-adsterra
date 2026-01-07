@@ -21,7 +21,9 @@ import {
   getDocs, 
   orderBy,
   increment,
-  Timestamp
+  limit,
+  deleteDoc,
+  writeBatch
 } from 'firebase/firestore';
 import { User, WithdrawRequest, Activity, ActivityType, RequestStatus } from '../types';
 
@@ -36,18 +38,16 @@ export const firebaseConfig = {
   measurementId: "G-N2D2BXBLPJ"
 };
 
-// Initialize Firebase once
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// Ensure session stays in LocalStorage
 setPersistence(auth, browserLocalPersistence);
 
 const CURRENT_USER_KEY = 'emerald_rewards_current_user';
+const MAX_HISTORY_ITEMS = 10;
 
 export const mockDb = {
-  // We keep this for immediate UI sync, but source of truth is Firestore
   getCurrentUser: (): User | null => {
     const user = localStorage.getItem(CURRENT_USER_KEY);
     return user ? JSON.parse(user) : null;
@@ -61,9 +61,6 @@ export const mockDb = {
   }
 };
 
-/**
- * FIRESTORE HELPERS
- */
 export const dbService = {
   getUser: async (uid: string): Promise<User | null> => {
     const docRef = doc(db, "users", uid);
@@ -82,27 +79,60 @@ export const dbService = {
     });
   },
 
-  // Fix: Omit createdAt from parameter as it is added internally using Date.now() to ensure type compatibility with callers
   logActivity: async (activity: Omit<Activity, 'id' | 'createdAt'>): Promise<void> => {
-    await addDoc(collection(db, "activity"), {
+    const activityCol = collection(db, "activity");
+    // 1. Add new activity
+    await addDoc(activityCol, {
       ...activity,
       createdAt: Date.now()
     });
+
+    // 2. Auto-cleanup: Keep only latest 10
+    const q = query(
+      activityCol, 
+      where("userId", "==", activity.userId), 
+      orderBy("createdAt", "desc")
+    );
+    const snapshot = await getDocs(q);
+    if (snapshot.size > MAX_HISTORY_ITEMS) {
+      const batch = writeBatch(db);
+      snapshot.docs.slice(MAX_HISTORY_ITEMS).forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+    }
   },
 
-  // Fix: Omit createdAt from parameter as it is added internally using Date.now() to ensure type compatibility with callers
   addWithdrawRequest: async (request: Omit<WithdrawRequest, 'id' | 'createdAt'>): Promise<void> => {
-    await addDoc(collection(db, "withdrawRequests"), {
+    const withdrawCol = collection(db, "withdrawRequests");
+    // 1. Add new request
+    await addDoc(withdrawCol, {
       ...request,
       createdAt: Date.now()
     });
+
+    // 2. Auto-cleanup: Keep only latest 10 withdrawals
+    const q = query(
+      withdrawCol, 
+      where("userId", "==", request.userId), 
+      orderBy("createdAt", "desc")
+    );
+    const snapshot = await getDocs(q);
+    if (snapshot.size > MAX_HISTORY_ITEMS) {
+      const batch = writeBatch(db);
+      snapshot.docs.slice(MAX_HISTORY_ITEMS).forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+    }
   },
 
   getActivities: async (uid: string): Promise<Activity[]> => {
     const q = query(
       collection(db, "activity"), 
       where("userId", "==", uid),
-      orderBy("createdAt", "desc")
+      orderBy("createdAt", "desc"),
+      limit(MAX_HISTORY_ITEMS)
     );
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity));
@@ -112,14 +142,15 @@ export const dbService = {
     const q = query(
       collection(db, "withdrawRequests"), 
       where("userId", "==", uid),
-      orderBy("createdAt", "desc")
+      orderBy("createdAt", "desc"),
+      limit(MAX_HISTORY_ITEMS)
     );
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WithdrawRequest));
   },
 
   getAllWithdrawRequests: async (): Promise<WithdrawRequest[]> => {
-    const q = query(collection(db, "withdrawRequests"), orderBy("createdAt", "desc"));
+    const q = query(collection(db, "withdrawRequests"), orderBy("createdAt", "desc"), limit(50));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WithdrawRequest));
   },
@@ -133,13 +164,9 @@ export const dbService = {
 export const loginWithGoogle = async (): Promise<User> => {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
-  
   const result = await signInWithPopup(auth, provider);
   const fbUser = result.user;
-
-  // Check Firestore for user
   let user = await dbService.getUser(fbUser.uid);
-
   if (!user) {
     user = {
       uid: fbUser.uid,
@@ -152,7 +179,6 @@ export const loginWithGoogle = async (): Promise<User> => {
     };
     await dbService.createUser(user);
   }
-
   mockDb.setCurrentUser(user);
   return user;
 };
@@ -160,16 +186,13 @@ export const loginWithGoogle = async (): Promise<User> => {
 export const logoutUser = async () => {
   try {
     await signOut(auth);
-  } catch (e) {
-    console.error("Firebase signOut failed:", e);
-  }
+  } catch (e) { console.error(e); }
   mockDb.setCurrentUser(null);
 };
 
 export const loginAsAdmin = async (): Promise<User> => {
   const adminUid = 'admin-1';
   let admin = await dbService.getUser(adminUid);
-  
   if (!admin) {
     admin = {
       uid: adminUid,
@@ -182,7 +205,6 @@ export const loginAsAdmin = async (): Promise<User> => {
     };
     await dbService.createUser(admin);
   }
-  
   mockDb.setCurrentUser(admin);
   return admin;
 };
