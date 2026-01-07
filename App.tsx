@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+// Fix: Ensuring onAuthStateChanged is imported correctly from firebase/auth
 import { onAuthStateChanged } from 'firebase/auth';
 import { User, Activity, WithdrawRequest, ActivityType, RequestStatus } from './types';
 import { mockDb, loginWithGoogle, loginAsAdmin, auth, dbService } from './services/mockData';
