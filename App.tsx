@@ -34,11 +34,27 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(mockDb.getCurrentUser());
   const [loading, setLoading] = useState(true);
 
-  // Sync state with Firebase Auth
+  // GLOBAL NATIVE REWARD LISTENER
+  useEffect(() => {
+    const handleNativeReward = async (event: MessageEvent) => {
+      // String must match exactly what the Android Blocks send
+      if (event.data === "reward_granted" && user) {
+        console.log("Reward signal received from Native Bridge");
+        try {
+          await grantReward();
+        } catch (e) {
+          console.error("Reward processing error:", e);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleNativeReward);
+    return () => window.removeEventListener('message', handleNativeReward);
+  }, [user]);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
-        // Fetch real-time data from Firestore
         const cloudUser = await dbService.getUser(fbUser.uid);
         if (cloudUser) {
           setUser(cloudUser);
@@ -53,7 +69,6 @@ const App: React.FC = () => {
       }
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -69,89 +84,61 @@ const App: React.FC = () => {
   const grantReward = async (): Promise<{ points: number; isLucky: boolean }> => {
     if (!user) return { points: 0, isLucky: false };
 
+    // Standard reward: 1-3 points. Lucky reward: 6 points.
     let reward = Math.floor(Math.random() * 3) + 1;
-    let isLucky = false;
+    let isLucky = Math.random() < 0.10; // 10% chance
+    if (isLucky) reward = 6;
 
-    // Check lucky bonus probability
-    if (Math.random() < 0.10) {
-      reward = 6;
-      isLucky = true;
-    }
+    // Update cloud and local state
+    await dbService.updatePoints(user.uid, reward);
+    await dbService.logActivity({
+      userId: user.uid,
+      type: ActivityType.WATCH_AD,
+      points: reward,
+      title: isLucky ? 'Lucky Bonus Ad Reward' : 'Video Ad Reward',
+      status: isLucky ? 'Bonus' : 'Completed'
+    });
 
-    try {
-      // 1. Update Points in Firestore
-      await dbService.updatePoints(user.uid, reward);
-      
-      // 2. Log Activity in Firestore
-      await dbService.logActivity({
-        userId: user.uid,
-        type: ActivityType.WATCH_AD,
-        points: reward,
-        title: isLucky ? 'Lucky Bonus Reward' : 'Ad Reward',
-        status: isLucky ? 'Bonus' : 'Completed'
-      });
-
-      // 3. Update Local State
-      const updatedUser = { ...user, points: user.points + reward };
-      setUser(updatedUser);
-      mockDb.setCurrentUser(updatedUser);
-
-      return { points: reward, isLucky };
-    } catch (e) {
-      console.error("Failed to grant reward:", e);
-      throw e;
-    }
+    const updatedUser = { ...user, points: user.points + reward };
+    setUser(updatedUser);
+    mockDb.setCurrentUser(updatedUser);
+    return { points: reward, isLucky };
   };
 
   const submitWithdraw = async (points: number, email: string): Promise<void> => {
     if (!user || user.points < points) throw new Error("Insufficient points");
-    
-    try {
-      // 1. Create withdrawal request in Firestore
-      await dbService.addWithdrawRequest({
-        userId: user.uid,
-        userEmail: email,
-        points: points,
-        status: RequestStatus.PENDING,
-        method: 'Google Play Redeem',
-        amountInInr: points / 100
-      });
-
-      // 2. Deduct points in Firestore
-      await dbService.updatePoints(user.uid, -points);
-
-      // 3. Log as negative activity
-      await dbService.logActivity({
-        userId: user.uid,
-        type: ActivityType.WITHDRAWAL,
-        points: -points,
-        title: 'Reward Redemption',
-        status: 'Pending'
-      });
-
-      // 4. Update UI
-      const updatedUser = { ...user, points: user.points - points };
-      setUser(updatedUser);
-      mockDb.setCurrentUser(updatedUser);
-    } catch (e) {
-      console.error("Withdrawal failed:", e);
-      throw e;
-    }
+    await dbService.addWithdrawRequest({
+      userId: user.uid,
+      userEmail: email,
+      points: points,
+      status: RequestStatus.PENDING,
+      method: 'Google Play Redeem',
+      amountInInr: points / 100
+    });
+    await dbService.updatePoints(user.uid, -points);
+    await dbService.logActivity({
+      userId: user.uid,
+      type: ActivityType.WITHDRAWAL,
+      points: -points,
+      title: 'Requested Withdrawal',
+      status: 'Pending'
+    });
+    const updatedUser = { ...user, points: user.points - points };
+    setUser(updatedUser);
+    mockDb.setCurrentUser(updatedUser);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#102216] flex flex-col items-center justify-center">
-        <div className="w-16 h-16 border-4 border-[#13ec5b] border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-[#13ec5b] font-bold tracking-widest animate-pulse">EMERALD REWARDS</p>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="min-h-screen bg-[#102216] flex flex-col items-center justify-center">
+       <div className="w-10 h-10 border-4 border-[#13ec5b] border-t-transparent rounded-full animate-spin mb-4" />
+       <p className="text-[#13ec5b] font-black uppercase tracking-[0.3em] text-[10px]">Syncing Session...</p>
+    </div>
+  );
 
   return (
     <AppContext.Provider value={{ user, setUser, loading, refreshUser, grantReward, submitWithdraw }}>
       <Router>
-        <div className="max-w-md mx-auto min-h-screen bg-[#102216] relative overflow-hidden flex flex-col">
+        <div className="max-w-md mx-auto min-h-screen bg-[#102216] relative overflow-hidden flex flex-col shadow-2xl">
           <Routes>
             <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
             <Route path="/" element={user ? <Dashboard /> : <Navigate to="/login" />} />
