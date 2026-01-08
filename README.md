@@ -1,27 +1,69 @@
 
-# Emerald Rewards - Native App Guide (AdMob Only)
+# Emerald Rewards - Full Block System Guide
 
-## ⚠️ CRITICAL: App Crash Fix
-In **Android Builder**, when you add the AdMob components (Rewarded, Native, App Open), you **MUST** go to the component properties and enter your **Google AdMob App ID** (starts with `ca-app-pub-`). 
-*   If you leave this blank, the app **WILL CRASH** on start.
-*   Do not use the "Unit ID" here; use the "App ID" for the global screen settings.
+Follow these steps to rebuild your "Watch & Earn" blocks in Android Builder (Kodular/App Inventor).
 
-## 1. Google Login (Redirect Mode)
-The login system now uses `signInWithRedirect`.
-*   **Firebase Setup**: Ensure `watch-and-earn-with-me.netlify.app` is in your Firebase Authorized Domains.
-*   **Android Builder**: Ensure `WebViewer1` has the following properties checked:
-    *   `UsesLocation`
-    *   `PromptForPermission`
-    *   `UsesHardwareAcceleration`
+## 1. Components Needed
+- **WebViewer1**: Your main interface.
+- **AdmobReward1**: For Rewarded Video ads.
+- **AdmobAppOpen1**: For ads shown when the app opens.
+- **AdmobNative1**: To show ads inside the dashboard container.
 
-## 2. Updated Block Commands
-The site sends these signals to your native blocks via `WebViewStringChange`:
-- `show_rewarded_ad`: Show the video ad.
-- `show_app_open`: Show the App Open ad (triggered at startup).
-- `load_native_ad`: Tells the Native Ad component to load a new ad.
+## 2. Variables
+- `global ad_ready` = `false`
+- `global app_open_ready` = `false`
 
-## 3. Native -> Site Signals
-Ensure your native blocks use `RunJavaScript` to send these messages back to the site:
-- `window.postMessage('reward_granted', '*')`: Adds points.
-- `window.postMessage('ad_dismissed', '*')`: Stops the loading spinner.
-- `window.postMessage('ad_not_ready', '*')`: Shows the "Ad not ready" error.
+## 3. Screen Initialize Blocks
+```text
+When Screen1.Initialize:
+  Set WebViewer1.Url to "https://watch-and-earn-with-me.netlify.app"
+  Call AdmobReward1.LoadAd
+  Call AdmobAppOpen1.LoadAd
+```
+
+## 4. Ad Loading Blocks
+```text
+When AdmobReward1.AdLoaded:
+  Set global ad_ready to true
+
+When AdmobAppOpen1.AdLoaded:
+  Set global app_open_ready to true
+```
+
+## 5. WebView Communication (The Bridge)
+```text
+When WebViewer1.WebViewStringChange (value):
+  If value = "show_rewarded_ad":
+     If global ad_ready = true:
+        Call AdmobReward1.ShowAd
+     Else:
+        Call WebViewer1.RunJavaScript("window.postMessage('ad_not_ready', '*')")
+  
+  If value = "show_app_open":
+     If global app_open_ready = true:
+        Call AdmobAppOpen1.ShowAd
+
+  If value = "load_native_ad":
+     Call AdmobNative1.LoadAd
+```
+
+## 6. Reward & Cleanup Blocks
+```text
+When AdmobReward1.GotRewardItem:
+  Call WebViewer1.RunJavaScript("window.postMessage('reward_granted', '*')")
+
+When AdmobReward1.AdDismissed:
+  Set global ad_ready to false
+  Call AdmobReward1.LoadAd
+  Call WebViewer1.RunJavaScript("window.postMessage('ad_dismissed', '*')")
+
+When AdmobReward1.FailedToShowAd:
+  Set global ad_ready to false
+  Call AdmobReward1.LoadAd
+  Call WebViewer1.RunJavaScript("window.postMessage('ad_failed', '*')")
+```
+
+## ⚠️ Important Configuration
+1. **AdMob App ID**: You MUST put your App ID (e.g., `ca-app-pub-xxx~xxx`) in the **Screen1 Properties** under "AdMob App ID".
+2. **Google Login**: Ensure your `WebViewer1` has `UsesLocation` and `PromptForPermission` enabled.
+3. **Firebase**: Ensure the site URL is in your "Authorized Domains" in the Firebase Console.

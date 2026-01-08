@@ -15,7 +15,7 @@ const Dashboard: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [timerCount, setTimerCount] = useState<number>(0);
 
-  // Initial setup for Native Ads
+  // Request Native Ad load when Dashboard opens
   useEffect(() => {
     const win = window as any;
     if (win.AppInventor) {
@@ -27,7 +27,7 @@ const Dashboard: React.FC = () => {
     setIsWatching(true);
     setStatusMessage("Wait 2-3 sec, your ad is loading...");
     
-    // UI Timer logic for exactly what you asked
+    // UI Timer logic as requested
     setTimerCount(3);
     const interval = setInterval(() => {
       setTimerCount((prev) => {
@@ -47,7 +47,7 @@ const Dashboard: React.FC = () => {
       win.AppInventor.setWebViewString("show_rewarded_ad");
     } else {
       // Browser Mock behavior
-      console.log("Native Ad Triggered");
+      console.log("AdBridge: show_rewarded_ad signal sent");
       setTimeout(() => {
         window.postMessage("reward_granted", "*");
       }, 2000);
@@ -123,13 +123,13 @@ const Dashboard: React.FC = () => {
             {isWatching ? (
               <div className="flex flex-col items-center">
                 <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest animate-pulse">
-                  {timerCount > 0 ? `Loading Ad in ${timerCount}s...` : 'Ad Playing...'}
+                  {timerCount > 0 ? `Ad Loading in ${timerCount}s...` : 'Ad is Playing'}
                 </span>
               </div>
             ) : (
               <div className="flex items-center gap-2">
                 <ICONS.Play className="w-5 h-5 text-[#102216]" />
-                <span className="font-black text-[#102216] uppercase tracking-wider">Watch & Earn</span>
+                <span className="font-black text-[#102216] uppercase tracking-wider">Watch Ad & Earn</span>
               </div>
             )}
           </button>
@@ -142,21 +142,22 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      <div className="mb-6 p-4 glass rounded-[24px] border border-dashed border-white/10 min-h-[110px] flex flex-col items-center justify-center">
-        <span className="text-[8px] font-black text-gray-600 uppercase tracking-[0.4em] mb-2">Native Sponsored</span>
-        <div className="text-[10px] text-gray-500 italic">
-          (AdMob Native Ad Container)
+      {/* Placeholder for Native Ad Slot in Android Builder */}
+      <div className="mb-6 p-4 glass rounded-[24px] border border-dashed border-white/10 min-h-[120px] flex flex-col items-center justify-center">
+        <span className="text-[8px] font-black text-gray-600 uppercase tracking-[0.4em] mb-2">Passive Earnings Slot</span>
+        <div className="text-[10px] text-gray-500 italic text-center">
+          Place your AdMob Native Ad component here in Android Builder
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <button onClick={() => navigate('/withdraw')} className="glass p-5 rounded-[28px] flex flex-col gap-3 active:scale-95 transition-all">
           <ICONS.Wallet className="w-5 h-5 text-[#13ec5b]" />
-          <span className="font-bold text-sm">Withdraw</span>
+          <span className="font-bold text-sm">Redeem Cards</span>
         </button>
         <button onClick={() => navigate('/history')} className="glass p-5 rounded-[28px] flex flex-col gap-3 active:scale-95 transition-all">
           <ICONS.History className="w-5 h-5 text-blue-400" />
-          <span className="font-bold text-sm">History</span>
+          <span className="font-bold text-sm">Earn History</span>
         </button>
       </div>
 
