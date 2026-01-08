@@ -15,7 +15,7 @@ import {
 } from 'firebase/firestore';
 
 const History: React.FC = () => {
-  const { user } = useApp();
+  const { user, showToast } = useApp();
   const [tab, setTab] = useState<'activity' | 'withdrawals'>('activity');
   const [activities, setActivities] = useState<Activity[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawRequest[]>([]);
@@ -65,7 +65,7 @@ const History: React.FC = () => {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert("Redeem Code Copied!");
+    showToast("Redeem Code Copied!", "success");
   };
 
   const formatDate = (ts: number) => new Intl.DateTimeFormat('en-US', { 

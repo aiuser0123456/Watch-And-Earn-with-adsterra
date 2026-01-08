@@ -7,7 +7,7 @@ import { ICONS, EXCHANGE_RATE, CONVERSION_FACTOR } from '../constants';
 import ConfirmationDialog from '../components/ConfirmationDialog';
 
 const Withdraw: React.FC = () => {
-  const { user, submitWithdraw } = useApp();
+  const { user, submitWithdraw, showToast } = useApp();
   const navigate = useNavigate();
   const [amount, setAmount] = useState<number>(1000);
   const [loading, setLoading] = useState(false);
@@ -22,8 +22,9 @@ const Withdraw: React.FC = () => {
     try {
       await submitWithdraw(amount, user.email);
       setSuccess(true);
+      showToast("Request submitted successfully!", "success");
     } catch (e) {
-      alert("Something went wrong. Please try again.");
+      showToast("Submission failed. Check your connection.", "error");
     } finally {
       setLoading(false);
     }
@@ -32,11 +33,11 @@ const Withdraw: React.FC = () => {
   const onConfirmClick = () => {
     if (!user) return;
     if (user.points < amount) {
-      alert("Insufficient points!");
+      showToast("Insufficient points!", "error");
       return;
     }
     if (amount < 1000) {
-      alert("Minimum withdrawal is 1000 points.");
+      showToast("Minimum withdrawal is 1000 points.", "error");
       return;
     }
     setShowConfirm(true);

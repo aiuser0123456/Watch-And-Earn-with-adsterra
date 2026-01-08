@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { db, auth, dbService } from '../services/mockData';
+import { useApp } from '../App';
 import Layout from '../components/Layout';
 import { WithdrawRequest, RequestStatus, User } from '../types';
 import { 
@@ -15,6 +16,7 @@ import { CONVERSION_FACTOR } from '../constants';
 import ConfirmationDialog from '../components/ConfirmationDialog';
 
 const AdminPanel: React.FC = () => {
+  const { showToast } = useApp();
   const [requests, setRequests] = useState<WithdrawRequest[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [activeTab, setActiveTab] = useState<'requests' | 'users'>('requests');
@@ -47,7 +49,7 @@ const AdminPanel: React.FC = () => {
 
   const initiateAction = (status: RequestStatus) => {
     if (status === RequestStatus.APPROVED && !redeemCode.trim()) {
-      alert("Error: You must enter a Redeem Code before approving.");
+      showToast("Error: Redeem Code required.", "error");
       return;
     }
     setShowConfirmAction({ status, label: status === RequestStatus.APPROVED ? 'Approve' : 'Reject' });
@@ -74,9 +76,10 @@ const AdminPanel: React.FC = () => {
       await updateDoc(docRef, updateData);
       setSelectedReq(null);
       setRedeemCode('');
+      showToast(`Request ${status} successfully.`, "success");
     } catch (e) {
       console.error(e);
-      alert("Database error. Action failed.");
+      showToast("Database error. Action failed.", "error");
     } finally {
       setIsProcessing(false);
     }
@@ -87,9 +90,9 @@ const AdminPanel: React.FC = () => {
     setIsProcessing(true);
     try {
       await dbService.clearProcessedRequests();
-      alert("Cleared all processed requests.");
+      showToast("Cleared all processed requests.", "success");
     } catch (e) {
-      alert("Failed to clear history.");
+      showToast("Failed to clear history.", "error");
     } finally {
       setIsProcessing(false);
     }
