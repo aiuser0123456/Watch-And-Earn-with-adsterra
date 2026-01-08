@@ -7,7 +7,7 @@ import { logoutUser } from '../services/mockData';
 import ConfirmationDialog from '../components/ConfirmationDialog';
 
 const Dashboard: React.FC = () => {
-  const { user, setUser } = useApp();
+  const { user, setUser, triggerInterstitial } = useApp();
   const navigate = useNavigate();
   
   const [isWatching, setIsWatching] = useState(false);
@@ -15,11 +15,11 @@ const Dashboard: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [timerCount, setTimerCount] = useState<number>(0);
 
-  // Request Native Ad load when Dashboard opens
   useEffect(() => {
     const win = window as any;
     if (win.AppInventor) {
       win.AppInventor.setWebViewString("load_native_ad");
+      win.AppInventor.setWebViewString("show_banner_ad");
     }
   }, []);
 
@@ -27,7 +27,6 @@ const Dashboard: React.FC = () => {
     setIsWatching(true);
     setStatusMessage("Wait 2-3 sec, your ad is loading...");
     
-    // UI Timer logic as requested
     setTimerCount(3);
     const interval = setInterval(() => {
       setTimerCount((prev) => {
@@ -46,7 +45,6 @@ const Dashboard: React.FC = () => {
     if (win.AppInventor) {
       win.AppInventor.setWebViewString("show_rewarded_ad");
     } else {
-      // Browser Mock behavior
       console.log("AdBridge: show_rewarded_ad signal sent");
       setTimeout(() => {
         window.postMessage("reward_granted", "*");
@@ -86,6 +84,12 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const navigateWithAd = (path: string) => {
+    // Show Full Screen Interstitial when moving to history or payout
+    triggerInterstitial();
+    navigate(path);
+  };
+
   if (!user) return null;
 
   return (
@@ -100,7 +104,7 @@ const Dashboard: React.FC = () => {
             <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.2em]">Verified User</p>
           </div>
         </div>
-        <button onClick={() => navigate('/settings')} className="p-3 glass rounded-2xl active:scale-90 transition-transform">
+        <button onClick={() => navigateWithAd('/settings')} className="p-3 glass rounded-2xl active:scale-90 transition-transform">
           <ICONS.Settings className="w-5 h-5 text-gray-300" />
         </button>
       </div>
@@ -142,23 +146,27 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Placeholder for Native Ad Slot in Android Builder */}
       <div className="mb-6 p-4 glass rounded-[24px] border border-dashed border-white/10 min-h-[120px] flex flex-col items-center justify-center">
         <span className="text-[8px] font-black text-gray-600 uppercase tracking-[0.4em] mb-2">Passive Earnings Slot</span>
         <div className="text-[10px] text-gray-500 italic text-center">
-          Place your AdMob Native Ad component here in Android Builder
+          Native Ads appear here automatically
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <button onClick={() => navigate('/withdraw')} className="glass p-5 rounded-[28px] flex flex-col gap-3 active:scale-95 transition-all">
+        <button onClick={() => navigateWithAd('/withdraw')} className="glass p-5 rounded-[28px] flex flex-col gap-3 active:scale-95 transition-all">
           <ICONS.Wallet className="w-5 h-5 text-[#13ec5b]" />
           <span className="font-bold text-sm">Redeem Cards</span>
         </button>
-        <button onClick={() => navigate('/history')} className="glass p-5 rounded-[28px] flex flex-col gap-3 active:scale-95 transition-all">
+        <button onClick={() => navigateWithAd('/history')} className="glass p-5 rounded-[28px] flex flex-col gap-3 active:scale-95 transition-all">
           <ICONS.History className="w-5 h-5 text-blue-400" />
           <span className="font-bold text-sm">Earn History</span>
         </button>
+      </div>
+
+      {/* FOOTER BANNER PLACEHOLDER SIGNAL */}
+      <div className="mt-auto pt-8 flex justify-center opacity-20">
+         <p className="text-[8px] font-black uppercase tracking-widest">Banner Ad Protected Area</p>
       </div>
 
       <ConfirmationDialog 

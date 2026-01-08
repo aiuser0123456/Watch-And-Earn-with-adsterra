@@ -3,7 +3,7 @@ import React, { useState, useEffect, createContext, useContext } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { User, Activity, WithdrawRequest, ActivityType, RequestStatus } from './types';
-import { mockDb, loginWithGoogle, loginAsAdmin, auth, dbService } from './services/mockData';
+import { mockDb, auth, dbService } from './services/mockData';
 import Login from './screens/Login';
 import Dashboard from './screens/Dashboard';
 import Withdraw from './screens/Withdraw';
@@ -27,6 +27,7 @@ interface AppContextType {
   grantReward: () => Promise<{ points: number; isLucky: boolean }>;
   submitWithdraw: (points: number, email: string) => Promise<void>;
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
+  triggerInterstitial: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -42,23 +43,22 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<ToastData | null>(null);
 
-  // APP OPEN AD HANDLER (NATIVE BRIDGE)
+  // GLOBAL AD SIGNAL HANDLER
   useEffect(() => {
     if (user) {
       const win = window as any;
       if (win.AppInventor) {
+        // Prepare everything for the native shell
         win.AppInventor.setWebViewString("show_app_open");
-      } else if (win.Capacitor) {
-        // Future-proof for Capacitor plugins
-        console.log("Capacitor: Request App Open Ad");
+        win.AppInventor.setWebViewString("load_banner");
+        win.AppInventor.setWebViewString("load_interstitial");
       }
     }
   }, [user]);
 
-  // REWARD LISTENER
+  // REWARD & AD LISTENER
   useEffect(() => {
-    const handleNativeReward = async (event: MessageEvent) => {
-      // Logic for various native wrappers
+    const handleNativeMessage = async (event: MessageEvent) => {
       const msg = typeof event.data === 'string' ? event.data : event.data?.type;
       
       if (msg === "reward_granted" && user) {
@@ -70,8 +70,8 @@ const App: React.FC = () => {
       }
     };
 
-    window.addEventListener('message', handleNativeReward);
-    return () => window.removeEventListener('message', handleNativeReward);
+    window.addEventListener('message', handleNativeMessage);
+    return () => window.removeEventListener('message', handleNativeMessage);
   }, [user]);
 
   useEffect(() => {
@@ -97,6 +97,15 @@ const App: React.FC = () => {
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const triggerInterstitial = () => {
+    const win = window as any;
+    if (win.AppInventor) {
+      win.AppInventor.setWebViewString("show_interstitial");
+    } else {
+      console.log("AdBridge: show_interstitial signal sent");
+    }
   };
 
   const refreshUser = async () => {
@@ -157,10 +166,9 @@ const App: React.FC = () => {
   );
 
   return (
-    <AppContext.Provider value={{ user, setUser, loading, refreshUser, grantReward, submitWithdraw, showToast }}>
+    <AppContext.Provider value={{ user, setUser, loading, refreshUser, grantReward, submitWithdraw, showToast, triggerInterstitial }}>
       <Router>
         <div className="max-w-md mx-auto min-h-screen bg-[#102216] relative overflow-hidden flex flex-col shadow-2xl">
-          {/* NATIVE TOAST COMPONENT */}
           {toast && (
             <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-4 right-4 z-[300] animate-in slide-in-from-top-4 duration-300">
               <div className={`glass p-4 rounded-[24px] flex items-center gap-3 border shadow-2xl ${
@@ -193,6 +201,9 @@ const App: React.FC = () => {
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
+          
+          {/* BANNER AD SAFE AREA */}
+          <div className="h-[calc(env(safe-area-inset-bottom)+50px)] w-full shrink-0 bg-transparent pointer-events-none" />
         </div>
       </Router>
     </AppContext.Provider>
