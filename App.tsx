@@ -34,14 +34,20 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(mockDb.getCurrentUser());
   const [loading, setLoading] = useState(true);
 
-  // APP OPEN AD & REWARD HANDLER
+  // APP OPEN AD HANDLER
   useEffect(() => {
-    const win = window as any;
-    if (win.AppInventor) {
-      win.AppInventor.setWebViewString("show_app_open");
+    if (user) {
+      const win = window as any;
+      if (win.AppInventor) {
+        win.AppInventor.setWebViewString("show_app_open");
+      }
     }
+  }, [user]);
 
+  // REWARD LISTENER
+  useEffect(() => {
     const handleNativeReward = async (event: MessageEvent) => {
+      // Support both with and without the '*' origin in postMessage
       if (event.data === "reward_granted" && user) {
         try {
           await grantReward();
@@ -87,6 +93,7 @@ const App: React.FC = () => {
   const grantReward = async (): Promise<{ points: number; isLucky: boolean }> => {
     if (!user) return { points: 0, isLucky: false };
 
+    // Standard reward 1-3 pts, 10% chance for 6 pts
     let reward = Math.floor(Math.random() * 3) + 1;
     let isLucky = Math.random() < 0.10; 
     if (isLucky) reward = 6;
@@ -125,7 +132,7 @@ const App: React.FC = () => {
   if (loading) return (
     <div className="min-h-screen bg-[#102216] flex flex-col items-center justify-center">
        <div className="w-8 h-8 border-4 border-[#13ec5b] border-t-transparent rounded-full animate-spin mb-4" />
-       <p className="text-[#13ec5b] font-black uppercase tracking-widest text-[9px]">Syncing...</p>
+       <p className="text-[#13ec5b] font-black uppercase tracking-widest text-[9px]">Emerald rewards Syncing...</p>
     </div>
   );
 
