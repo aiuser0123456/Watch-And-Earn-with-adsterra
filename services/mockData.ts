@@ -1,10 +1,10 @@
 
 import { initializeApp } from 'firebase/app';
-// Standard modular Firebase Auth imports
 import { 
   getAuth, 
   GoogleAuthProvider, 
-  signInWithPopup, 
+  signInWithRedirect, 
+  getRedirectResult,
   signOut, 
   setPersistence, 
   browserLocalPersistence 
@@ -22,7 +22,6 @@ import {
   getDocs, 
   orderBy,
   increment,
-  limit,
   writeBatch
 } from 'firebase/firestore';
 import { User, WithdrawRequest, Activity, ActivityType, RequestStatus } from '../types';
@@ -84,14 +83,6 @@ export const dbService = {
       ...activity,
       createdAt: Date.now()
     });
-
-    const q = query(activityCol, where("userId", "==", activity.userId), orderBy("createdAt", "desc"));
-    const snapshot = await getDocs(q);
-    if (snapshot.size > MAX_HISTORY_ITEMS) {
-      const batch = writeBatch(db);
-      snapshot.docs.slice(MAX_HISTORY_ITEMS).forEach((doc) => batch.delete(doc.ref));
-      await batch.commit();
-    }
   },
 
   addWithdrawRequest: async (request: Omit<WithdrawRequest, 'id' | 'createdAt'>): Promise<void> => {
@@ -112,26 +103,39 @@ export const dbService = {
   }
 };
 
-export const loginWithGoogle = async (): Promise<User> => {
+export const loginWithGoogle = async (): Promise<void> => {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
-  const result = await signInWithPopup(auth, provider);
-  const fbUser = result.user;
-  let user = await dbService.getUser(fbUser.uid);
-  if (!user) {
-    user = {
-      uid: fbUser.uid,
-      name: fbUser.displayName || 'New User',
-      email: fbUser.email || '',
-      points: 0,
-      photoUrl: fbUser.photoURL || `https://picsum.photos/seed/${fbUser.uid}/200`,
-      createdAt: Date.now(),
-      isAdmin: false
-    };
-    await dbService.createUser(user);
+  // Switched to redirect for mobile WebView compatibility
+  await signInWithRedirect(auth, provider);
+};
+
+export const checkRedirectResult = async (): Promise<User | null> => {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result) {
+      const fbUser = result.user;
+      let user = await dbService.getUser(fbUser.uid);
+      if (!user) {
+        user = {
+          uid: fbUser.uid,
+          name: fbUser.displayName || 'New User',
+          email: fbUser.email || '',
+          points: 0,
+          photoUrl: fbUser.photoURL || `https://picsum.photos/seed/${fbUser.uid}/200`,
+          createdAt: Date.now(),
+          isAdmin: false
+        };
+        await dbService.createUser(user);
+      }
+      mockDb.setCurrentUser(user);
+      return user;
+    }
+  } catch (error) {
+    console.error("Redirect check failed:", error);
+    throw error;
   }
-  mockDb.setCurrentUser(user);
-  return user;
+  return null;
 };
 
 export const logoutUser = async () => {
