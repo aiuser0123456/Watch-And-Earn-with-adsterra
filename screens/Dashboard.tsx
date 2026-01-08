@@ -13,19 +13,43 @@ const Dashboard: React.FC = () => {
   const [isWatching, setIsWatching] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [adTimer, setAdTimer] = useState<number | null>(null);
+
+  // Load Native Ad on mount
+  useEffect(() => {
+    const win = window as any;
+    if (win.AppInventor) {
+      win.AppInventor.setWebViewString("load_native_ad");
+    }
+  }, []);
 
   const handleStartAd = () => {
     setIsWatching(true);
-    setStatusMessage(null);
+    setStatusMessage("Preparing your ad...");
     
-    // Exact match for the "WebViewStringChange" block in Android Builder
+    // 2-Second Prep Timer
+    let timeLeft = 2;
+    setAdTimer(timeLeft);
+    
+    const countdown = setInterval(() => {
+      timeLeft -= 1;
+      setAdTimer(timeLeft);
+      if (timeLeft <= 0) {
+        clearInterval(countdown);
+        setAdTimer(null);
+        triggerNativeAd();
+      }
+    }, 1000);
+  };
+
+  const triggerNativeAd = () => {
     const win = window as any;
     if (win.AppInventor) {
       console.log("Triggering Native Ad via WebViewString");
       win.AppInventor.setWebViewString("show_rewarded_ad");
     } else {
-      // Browser Mock for testing
-      console.log("Native bridge not found. Mocking ad behavior...");
+      // Browser Mock
+      console.log("Native bridge not found. Mocking ad reward...");
       setTimeout(() => {
         window.postMessage("reward_granted", "*");
       }, 3000);
@@ -34,20 +58,19 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     const handleNativeMessage = (event: MessageEvent) => {
-      // These signals match the "RunJavaScript" blocks in your Android Builder setup
       if (event.data === "reward_granted") {
         setIsWatching(false);
-        setStatusMessage("✅ Points Added Successfully!");
+        setStatusMessage("✅ Points Added!");
         setTimeout(() => setStatusMessage(null), 3000);
       } 
       else if (event.data === "ad_not_ready") {
         setIsWatching(false);
-        setStatusMessage("⏳ Ad is still loading... wait a moment.");
+        setStatusMessage("⏳ Ad not ready. Try in a moment.");
         setTimeout(() => setStatusMessage(null), 4000);
       }
-      // Handlers for closing/failing (Add these RunJavaScript blocks to your builder for better UX)
-      else if (event.data === "ad_dismissed" || event.data === "ad_closed" || event.data === "ad_failed") {
+      else if (event.data === "ad_dismissed" || event.data === "ad_failed") {
         setIsWatching(false);
+        setStatusMessage(null);
       }
     };
 
@@ -70,94 +93,89 @@ const Dashboard: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col p-6 pb-24 relative overflow-y-auto no-scrollbar">
       {/* Header */}
-      <div className="flex items-center justify-between mb-10 mt-4">
+      <div className="flex items-center justify-between mb-8 mt-4">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full border-2 border-[#13ec5b] p-1 shadow-[0_0_15px_rgba(19,236,91,0.3)]">
+          <div className="w-12 h-12 rounded-full border-2 border-[#13ec5b] p-1 shadow-lg">
             <img src={user.photoUrl} alt="User" className="w-full h-full rounded-full object-cover" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">Hi, {user.name.split(' ')[0]}</h2>
-            <p className="text-gray-500 text-sm font-medium">{user.email}</p>
+            <h2 className="text-xl font-bold">Hi, {user.name.split(' ')[0]}</h2>
+            <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest">Active Member</p>
           </div>
         </div>
         <button onClick={() => navigate('/settings')} className="p-3 glass rounded-2xl active:scale-90 transition-transform">
-          <ICONS.Settings className="w-6 h-6 text-gray-300" />
+          <ICONS.Settings className="w-5 h-5 text-gray-300" />
         </button>
       </div>
 
       {/* Balance Display */}
-      <div className="glass rounded-[40px] p-8 mb-8 text-center relative overflow-hidden border border-white/10 shadow-2xl">
-        <div className="absolute -top-10 -right-10 w-40 h-40 bg-[#13ec5b] opacity-10 rounded-full blur-[60px]" />
-        <p className="text-gray-400 font-bold tracking-[0.2em] text-[10px] mb-2 uppercase opacity-60">Your Balance</p>
-        <div className="flex items-center justify-center gap-3">
-          <span className="text-6xl font-black text-[#13ec5b] tracking-tighter drop-shadow-[0_0_20px_rgba(19,236,91,0.4)]">
+      <div className="glass rounded-[32px] p-8 mb-6 text-center border border-white/10 shadow-2xl relative overflow-hidden">
+        <p className="text-gray-500 font-bold text-[9px] mb-2 uppercase tracking-[0.2em]">Balance</p>
+        <div className="flex items-center justify-center gap-2">
+          <span className="text-5xl font-black text-[#13ec5b] tracking-tighter">
             {user.points.toLocaleString()}
           </span>
-          <span className="text-xl font-bold text-[#13ec5b] self-end mb-2">PTS</span>
+          <span className="text-xs font-bold text-[#13ec5b] opacity-60">PTS</span>
         </div>
 
         <div className="mt-8">
           <button 
             onClick={handleStartAd}
             disabled={isWatching}
-            className={`w-full h-16 rounded-[22px] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl ${isWatching ? 'bg-gray-800' : 'bg-[#13ec5b] hover:brightness-110'}`}
+            className={`w-full h-16 rounded-2xl flex flex-col items-center justify-center transition-all active:scale-95 shadow-xl ${isWatching ? 'bg-gray-800' : 'bg-[#13ec5b]'}`}
           >
             {isWatching ? (
-              <div className="flex items-center gap-3">
-                <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                <span className="font-bold text-white uppercase tracking-widest text-xs">Ad Playing...</span>
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest animate-pulse">
+                  {adTimer !== null ? `Loading in ${adTimer}s...` : 'Ad is Playing'}
+                </span>
               </div>
             ) : (
-              <>
-                <ICONS.Play className="w-6 h-6 text-[#102216]" />
-                <span className="font-bold text-[#102216] text-lg uppercase tracking-wider">Watch & Earn</span>
-              </>
+              <div className="flex items-center gap-2">
+                <ICONS.Play className="w-5 h-5 text-[#102216]" />
+                <span className="font-black text-[#102216] uppercase tracking-wider">Watch Ad</span>
+              </div>
             )}
           </button>
           
           {statusMessage && (
-            <div className="mt-4 animate-in fade-in slide-in-from-top-1">
-              <p className={`text-[11px] font-black uppercase tracking-widest ${statusMessage.includes('✅') ? 'text-[#13ec5b]' : 'text-yellow-400'}`}>
-                {statusMessage}
-              </p>
-            </div>
+            <p className={`mt-3 text-[10px] font-black uppercase tracking-widest ${statusMessage.includes('✅') ? 'text-[#13ec5b]' : 'text-yellow-500'}`}>
+              {statusMessage}
+            </p>
           )}
         </div>
       </div>
 
-      {/* Action Buttons */}
+      {/* Native Ad Placeholder - This tells you where to put the Native Ad component in Android Builder */}
+      <div className="mb-6 p-4 glass rounded-[24px] border border-dashed border-white/10 flex flex-col items-center justify-center min-h-[100px]">
+        <span className="text-[8px] font-black text-gray-600 uppercase tracking-[0.3em] mb-2">Sponsored Content</span>
+        <div id="native-ad-container" className="w-full text-center text-[10px] text-gray-500 italic">
+          (Native Ad will appear here)
+        </div>
+      </div>
+
+      {/* Actions */}
       <div className="grid grid-cols-2 gap-4">
-        <button onClick={() => navigate('/withdraw')} className="glass p-6 rounded-[32px] flex flex-col items-start gap-4 active:scale-95 transition-transform hover:bg-white/5 border border-white/5">
-          <div className="w-12 h-12 bg-[#13ec5b]/10 rounded-2xl flex items-center justify-center text-[#13ec5b]">
-            <ICONS.Wallet className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="block font-bold text-lg">Redeem</span>
-            <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Payouts</span>
-          </div>
+        <button onClick={() => navigate('/withdraw')} className="glass p-5 rounded-[28px] flex flex-col gap-3 active:scale-95 transition-all">
+          <ICONS.Wallet className="w-5 h-5 text-[#13ec5b]" />
+          <span className="font-bold text-sm">Redeem</span>
         </button>
-        
-        <button onClick={() => navigate('/history')} className="glass p-6 rounded-[32px] flex flex-col items-start gap-4 active:scale-95 transition-transform hover:bg-white/5 border border-white/5">
-          <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-400">
-            <ICONS.History className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="block font-bold text-lg">History</span>
-            <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Logs</span>
-          </div>
+        <button onClick={() => navigate('/history')} className="glass p-5 rounded-[28px] flex flex-col gap-3 active:scale-95 transition-all">
+          <ICONS.History className="w-5 h-5 text-blue-400" />
+          <span className="font-bold text-sm">History</span>
         </button>
       </div>
 
       {user.isAdmin && (
-        <button onClick={() => navigate('/admin')} className="mt-10 py-4 glass border-dashed border-[#13ec5b]/30 rounded-2xl text-[#13ec5b] font-black uppercase tracking-[0.2em] text-[10px] active:scale-95 transition-all">
-          Owner Control Panel
+        <button onClick={() => navigate('/admin')} className="mt-8 py-3 glass border-dashed border-[#13ec5b]/20 rounded-xl text-[#13ec5b] font-black uppercase tracking-widest text-[9px]">
+          Admin Controls
         </button>
       )}
 
       <ConfirmationDialog 
         isOpen={showLogoutConfirm}
         title="Log Out?"
-        message="Are you sure you want to end your current session?"
+        message="End session?"
         confirmText="Log Out"
         isDanger={true}
         onConfirm={handleLogout}

@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-// Standard modular Firebase Auth import
 import { onAuthStateChanged } from 'firebase/auth';
 import { User, Activity, WithdrawRequest, ActivityType, RequestStatus } from './types';
 import { mockDb, loginWithGoogle, loginAsAdmin, auth, dbService } from './services/mockData';
@@ -35,16 +34,19 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(mockDb.getCurrentUser());
   const [loading, setLoading] = useState(true);
 
-  // GLOBAL NATIVE REWARD LISTENER
+  // APP OPEN AD & REWARD HANDLER
   useEffect(() => {
+    const win = window as any;
+    if (win.AppInventor) {
+      win.AppInventor.setWebViewString("show_app_open");
+    }
+
     const handleNativeReward = async (event: MessageEvent) => {
-      // Matches your "window.postMessage('reward_granted', '*')" block exactly
       if (event.data === "reward_granted" && user) {
-        console.log("Point granting signal received from Android Builder");
         try {
           await grantReward();
         } catch (e) {
-          console.error("Reward sync error:", e);
+          console.error("Reward error:", e);
         }
       }
     };
@@ -85,7 +87,6 @@ const App: React.FC = () => {
   const grantReward = async (): Promise<{ points: number; isLucky: boolean }> => {
     if (!user) return { points: 0, isLucky: false };
 
-    // Point logic: 1-3 pts normally. 6 pts for 10% lucky bonus.
     let reward = Math.floor(Math.random() * 3) + 1;
     let isLucky = Math.random() < 0.10; 
     if (isLucky) reward = 6;
@@ -105,7 +106,7 @@ const App: React.FC = () => {
     return { points: reward, isLucky };
   };
 
-  const submitWithdraw = async (points: number, email: string): Promise<void> => {
+  const submitWithdraw = async (points: number, email: string) => {
     if (!user || user.points < points) throw new Error("Insufficient points");
     await dbService.addWithdrawRequest({
       userId: user.uid,
@@ -116,13 +117,6 @@ const App: React.FC = () => {
       amountInInr: points / 100
     });
     await dbService.updatePoints(user.uid, -points);
-    await dbService.logActivity({
-      userId: user.uid,
-      type: ActivityType.WITHDRAWAL,
-      points: -points,
-      title: 'Requested Withdrawal',
-      status: 'Pending'
-    });
     const updatedUser = { ...user, points: user.points - points };
     setUser(updatedUser);
     mockDb.setCurrentUser(updatedUser);
@@ -130,8 +124,8 @@ const App: React.FC = () => {
 
   if (loading) return (
     <div className="min-h-screen bg-[#102216] flex flex-col items-center justify-center">
-       <div className="w-10 h-10 border-4 border-[#13ec5b] border-t-transparent rounded-full animate-spin mb-4" />
-       <p className="text-[#13ec5b] font-black uppercase tracking-[0.3em] text-[10px]">Connecting...</p>
+       <div className="w-8 h-8 border-4 border-[#13ec5b] border-t-transparent rounded-full animate-spin mb-4" />
+       <p className="text-[#13ec5b] font-black uppercase tracking-widest text-[9px]">Syncing...</p>
     </div>
   );
 
