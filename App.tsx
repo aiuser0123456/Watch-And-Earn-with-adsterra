@@ -42,12 +42,15 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<ToastData | null>(null);
 
-  // APP OPEN AD HANDLER
+  // APP OPEN AD HANDLER (NATIVE BRIDGE)
   useEffect(() => {
     if (user) {
       const win = window as any;
       if (win.AppInventor) {
         win.AppInventor.setWebViewString("show_app_open");
+      } else if (win.Capacitor) {
+        // Future-proof for Capacitor plugins
+        console.log("Capacitor: Request App Open Ad");
       }
     }
   }, [user]);
@@ -55,7 +58,10 @@ const App: React.FC = () => {
   // REWARD LISTENER
   useEffect(() => {
     const handleNativeReward = async (event: MessageEvent) => {
-      if (event.data === "reward_granted" && user) {
+      // Logic for various native wrappers
+      const msg = typeof event.data === 'string' ? event.data : event.data?.type;
+      
+      if (msg === "reward_granted" && user) {
         try {
           await grantReward();
         } catch (e) {
@@ -142,8 +148,11 @@ const App: React.FC = () => {
 
   if (loading) return (
     <div className="min-h-screen bg-[#102216] flex flex-col items-center justify-center">
-       <div className="w-8 h-8 border-4 border-[#13ec5b] border-t-transparent rounded-full animate-spin mb-4" />
-       <p className="text-[#13ec5b] font-black uppercase tracking-widest text-[9px]">Emerald rewards Syncing...</p>
+       <div className="w-10 h-10 border-4 border-[#13ec5b] border-t-transparent rounded-full animate-spin mb-6" />
+       <div className="flex flex-col items-center gap-1">
+         <p className="text-[#13ec5b] font-black uppercase tracking-[0.3em] text-[10px]">Emerald rewards</p>
+         <p className="text-gray-600 font-bold text-[8px] uppercase tracking-widest">Secure native environment</p>
+       </div>
     </div>
   );
 
@@ -151,24 +160,24 @@ const App: React.FC = () => {
     <AppContext.Provider value={{ user, setUser, loading, refreshUser, grantReward, submitWithdraw, showToast }}>
       <Router>
         <div className="max-w-md mx-auto min-h-screen bg-[#102216] relative overflow-hidden flex flex-col shadow-2xl">
-          {/* TOAST NOTIFICATION COMPONENT */}
+          {/* NATIVE TOAST COMPONENT */}
           {toast && (
-            <div className="fixed top-12 left-6 right-6 z-[200] animate-in slide-in-from-top-4 duration-300">
-              <div className={`glass p-4 rounded-2xl flex items-center gap-3 border shadow-2xl ${
+            <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-4 right-4 z-[300] animate-in slide-in-from-top-4 duration-300">
+              <div className={`glass p-4 rounded-[24px] flex items-center gap-3 border shadow-2xl ${
                 toast.type === 'error' ? 'border-red-500/30' : 
                 toast.type === 'success' ? 'border-[#13ec5b]/30' : 
                 'border-blue-400/30'
               }`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                    toast.type === 'error' ? 'bg-red-500/10 text-red-500' : 
                    toast.type === 'success' ? 'bg-[#13ec5b]/10 text-[#13ec5b]' : 
                    'bg-blue-400/10 text-blue-400'
                 }`}>
-                  {toast.type === 'success' && <ICONS.Check className="w-4 h-4" />}
-                  {toast.type === 'error' && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>}
-                  {toast.type === 'info' && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M11 7h2v2h-2V7zm0 4h2v6h-2v-6zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>}
+                  {toast.type === 'success' && <ICONS.Check className="w-5 h-5" />}
+                  {toast.type === 'error' && <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>}
+                  {toast.type === 'info' && <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M11 7h2v2h-2V7zm0 4h2v6h-2v-6zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>}
                 </div>
-                <p className="text-sm font-bold text-white leading-tight">{toast.message}</p>
+                <p className="text-[13px] font-extrabold text-white leading-tight">{toast.message}</p>
               </div>
             </div>
           )}
